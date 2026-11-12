@@ -185,7 +185,9 @@ To run on your ChatGPT Plus or Pro plan instead of an API key, choose "Subscript
 
 ### Claude Code CLI (subscription, no API key)
 
-`claude_cli` runs the whole desk through the Claude Code CLI already logged in on this machine (`claude`, version 2.1 or newer, on `PATH`). Usage stays on the Claude subscription. No `ANTHROPIC_API_KEY` is read, and if that variable or `ANTHROPIC_AUTH_TOKEN` is set in the environment it is removed from the CLI subprocess so the process cannot fall back to per-token API billing.
+`claude_cli` runs the whole desk through the Claude Code CLI already logged in on this machine (`claude`, version 2.1 or newer, on `PATH`). Usage stays on the Claude subscription. No `ANTHROPIC_API_KEY` is read. `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` are removed from the CLI subprocess whether they hold a key or are empty, so the process cannot fall back to per-token API billing.
+
+Importing the package loads `.env` from the working directory. A checkout whose `.env` contains `ANTHROPIC_API_KEY=` therefore puts an empty key in the environment when you run from that directory. The CLI subprocess still drops that empty value. Leave the line commented, or run from another directory, when the same checkout also uses the Anthropic API provider.
 
 Log in once in a terminal with `claude` (the same login Claude Code uses), then:
 
@@ -212,7 +214,7 @@ config["anthropic_effort"] = "high"
 
 Limits:
 
-- The CLI has no function calling. Each completion is one `claude -p --output-format json` process. Tools are disabled (`--tools ""`), the process is limited to one turn, permission mode is `plan`, MCP and slash commands are off, and the working directory is an empty temp dir so the CLI cannot edit this repo. Project `CLAUDE.md`, skills, hooks, and plugins are not loaded (`CLAUDE_CODE_SAFE_MODE`). A user-level Claude Code setting that the safe mode does not cover can still apply.
+- The CLI has no function calling. Each completion is one `claude -p --output-format json` process. Tools are disabled (`--tools ""`), the process is limited to one turn, and permission mode is `dontAsk`, so a tool that would need approval is denied. Plan mode is not used: it appends Claude Code's planning workflow, and that text was showing up inside the reports. MCP and slash commands are off, and the working directory is an empty temp dir so the CLI cannot edit this repo. Project `CLAUDE.md`, skills, hooks, and plugins are not loaded (`CLAUDE_CODE_SAFE_MODE`). A user-level Claude Code setting that the safe mode does not cover can still apply.
 - Tool calls are emulated. When an agent binds tools, the transcript ends with a JSON contract and the reply is parsed into real `AIMessage.tool_calls`. Several calls in one reply are supported. A name that was not bound is dropped. If every call is one of those, the text is the answer, so the analyst tool node is not asked to run a tool it does not have. If the model answers in prose instead, that text is the report, which is how the analyst loop already decides it is done calling tools.
 - Structured output (portfolio manager, research manager, trader) uses that same tool path: the schema is the only tool. If the reply is not valid for the schema, the existing agents retry the turn as free text. They do not crash.
 - Full message history is sent on stdin each turn: system, human, assistant (including earlier tool calls), and tool results. The prompt is not put on the command line.

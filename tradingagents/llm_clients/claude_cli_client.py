@@ -7,7 +7,10 @@ already turns one bound tool into a schema object, and the agents already drop
 back to free text when that parse fails.
 
 ``--bare`` is intentionally not used. It forces API-key auth and never reads
-the subscription login.
+the subscription login. ``--permission-mode plan`` is not used either: plan
+mode appends Claude Code's planning workflow, and that text leaks into the
+agents' prose. ``dontAsk`` denies any tool that would need permission, and
+``--tools ""`` means there is no tool to approve.
 """
 
 from __future__ import annotations
@@ -561,7 +564,9 @@ class ChatClaudeCLI(BaseChatModel):
             "--model", self.model,
             "--max-turns", "1",
             "--tools", "",
-            "--permission-mode", "plan",
+            # dontAsk denies edits and commands. plan mode is not used: its
+            # workflow reminder is copied into the answer.
+            "--permission-mode", "dontAsk",
             "--strict-mcp-config",
             "--no-session-persistence",
             "--disable-slash-commands",

@@ -312,12 +312,33 @@ def test_cli_flags_disable_tools_and_keep_the_prompt_off_the_command_line(fake_c
     assert cmd[cmd.index("--effort") + 1] == "high"
     assert cmd[cmd.index("--max-turns") + 1] == "1"
     assert cmd[cmd.index("--tools") + 1] == ""
-    assert cmd[cmd.index("--permission-mode") + 1] == "plan"
+    assert cmd[cmd.index("--permission-mode") + 1] == "dontAsk"
     for flag in ("--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands"):
         assert flag in cmd
     assert "secret-prompt-body" not in cmd
     assert "secret-prompt-body" in fake.calls[0]["prompt"]
     assert "tradingagents-claude-cli" in fake.calls[0]["cwd"]
+
+
+@pytest.mark.unit
+def test_plan_mode_workflow_is_not_requested(fake_cli):
+    """Plan mode appends Claude Code's planning workflow, which the model quotes.
+
+    A market-only smoke run ended the report by apologizing for those
+    instructions. The CLI must not be started in plan mode. dontAsk still
+    denies edits and commands, and the built-in tools stay disabled.
+    """
+    fake = fake_cli(["The trend is up."])
+    _llm().invoke("Analyze NVDA.")
+    cmd = fake.calls[0]["cmd"]
+    assert "--permission-mode" in cmd
+    assert cmd[cmd.index("--permission-mode") + 1] == "dontAsk"
+    assert "plan" not in cmd
+    assert "bypassPermissions" not in cmd
+    assert "--dangerously-skip-permissions" not in cmd
+    assert "acceptEdits" not in cmd
+    assert cmd[cmd.index("--tools") + 1] == ""
+    assert cmd[cmd.index("--max-turns") + 1] == "1"
 
 
 @pytest.mark.unit
@@ -350,6 +371,23 @@ def test_api_key_is_stripped_and_never_logged(fake_cli, monkeypatch, caplog):
         assert "sk-ant-supersecretvalue" not in joined
         assert "token-supersecretvalue" not in joined
     assert len(fake.calls) == 2  # one retry, then the scrubbed error
+
+
+@pytest.mark.unit
+def test_an_empty_api_key_from_dotenv_is_stripped(fake_cli, monkeypatch):
+    """A repo .env loaded from the working directory can set the key to empty.
+
+    ``load_dotenv(find_dotenv(usecwd=True))`` still exports that blank value.
+    An empty key must not reach the CLI, or it can leave subscription auth.
+    """
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "")
+    fake = fake_cli(["ok"])
+    _llm().invoke("hi")
+    env = fake.calls[0]["env"]
+    assert "ANTHROPIC_API_KEY" not in env
+    assert "ANTHROPIC_AUTH_TOKEN" not in env
+    assert env["CLAUDE_CODE_SAFE_MODE"] == "1"
 
 
 @pytest.mark.unit
