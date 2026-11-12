@@ -183,6 +183,46 @@ For Azure OpenAI, copy `.env.enterprise.example` to `.env.enterprise` and fill i
 
 To run on your ChatGPT Plus or Pro plan instead of an API key, choose "Subscription" in the CLI's provider menu, or set `llm_provider: "chatgpt"`. Sign in once with `tradingagents login chatgpt`: it prints an address to open in your browser, which returns to this machine on `127.0.0.1`. When the browser runs on another machine, or TradingAgents runs in Docker (`docker compose run --rm tradingagents login chatgpt`), paste the address the browser ends up on. The sign-in is kept in `~/.tradingagents/chatgpt-auth.json`, and `tradingagents logout chatgpt` revokes it. Runs count toward your plan's usage limits, and the plan does not accept `temperature` or `max_tokens`.
 
+### Claude Code CLI (subscription, no API key)
+
+`claude_cli` runs the whole desk through the Claude Code CLI already logged in on this machine (`claude`, version 2.1 or newer, on `PATH`). Usage stays on the Claude subscription. No `ANTHROPIC_API_KEY` is read, and if that variable or `ANTHROPIC_AUTH_TOKEN` is set in the environment it is removed from the CLI subprocess so the process cannot fall back to per-token API billing.
+
+Log in once in a terminal with `claude` (the same login Claude Code uses), then:
+
+```bash
+export TRADINGAGENTS_LLM_PROVIDER=claude_cli
+export TRADINGAGENTS_DEEP_THINK_LLM=opus
+export TRADINGAGENTS_QUICK_THINK_LLM=opus
+export TRADINGAGENTS_ANTHROPIC_EFFORT=high
+tradingagents --ticker NVDA --date 2026-11-10 --analysts market,news,fundamentals --save --no-show --no-html
+```
+
+The interactive menu entry is "Claude Code (local CLI, your Claude subscription)". It asks for the same effort level as the Anthropic API provider.
+
+Model ids are Claude Code aliases: `opus`, `sonnet`, and `haiku`. Any other id the CLI accepts (for example a full `claude-opus-…` id) can be entered as a custom model id. Effort reuses `TRADINGAGENTS_ANTHROPIC_EFFORT` / `anthropic_effort` and is passed as `claude --effort`. Accepted values are `low`, `medium`, `high`, `xhigh`, and `max`. The menu offers the first three.
+
+From Python:
+
+```python
+config["llm_provider"] = "claude_cli"
+config["deep_think_llm"] = "opus"
+config["quick_think_llm"] = "opus"
+config["anthropic_effort"] = "high"
+```
+
+Limits:
+
+- The CLI has no function calling. Each completion is one `claude -p --output-format json` process. Tools are disabled (`--tools ""`), the process is limited to one turn, permission mode is `plan`, MCP and slash commands are off, and the working directory is an empty temp dir so the CLI cannot edit this repo. Project `CLAUDE.md`, skills, hooks, and plugins are not loaded (`CLAUDE_CODE_SAFE_MODE`). A user-level Claude Code setting that the safe mode does not cover can still apply.
+- Tool calls are emulated. When an agent binds tools, the transcript ends with a JSON contract and the reply is parsed into real `AIMessage.tool_calls`. Several calls in one reply are supported. If the model answers in prose instead, that text is the report, which is how the analyst loop already decides it is done calling tools.
+- Structured output (portfolio manager, research manager, trader) uses that same tool path: the schema is the only tool. If the reply is not valid for the schema, the existing agents retry the turn as free text. They do not crash.
+- Full message history is sent on stdin each turn: system, human, assistant (including earlier tool calls), and tool results. The prompt is not put on the command line.
+- `temperature` and `max_tokens` are ignored. The CLI does not expose them.
+- Each call waits up to `TRADINGAGENTS_CLAUDE_CLI_TIMEOUT` seconds (default 900). A timeout is not retried. Other CLI failures retry `TRADINGAGENTS_LLM_MAX_RETRIES` times (default 2) with a short backoff. Opus at `high` effort is slow, and a full run is many calls one after another.
+- Analysts run at the same time, so CLI processes are capped by `TRADINGAGENTS_CLAUDE_CLI_MAX_CONCURRENCY` (default 2) across the whole run.
+- Optional: `TRADINGAGENTS_CLAUDE_CLI_BIN` if `claude` is not on `PATH`, and `TRADINGAGENTS_CLAUDE_CLI_CWD` to pin the empty working directory.
+- The binary and the subscription login have to be on the machine that runs the command. The Docker image does not include them.
+- This is still a research tool. It does not place orders.
+
 For AWS Bedrock, install the extra with `pip install ".[bedrock]"`, set `llm_provider: "bedrock"`, configure AWS credentials (environment variables, `~/.aws/credentials`, or an IAM role) and `AWS_DEFAULT_REGION`, and use a Bedrock model ID, e.g. `us.anthropic.claude-opus-5-5`.
 
 For local models, configure Ollama with `llm_provider: "ollama"`. The default endpoint is `http://localhost:11434/v1`; set `OLLAMA_BASE_URL` to point at a remote `ollama-serve`. Pull models with `ollama pull <name>`, and pick "Custom model ID" in the CLI for any model not listed by default.
@@ -245,7 +285,7 @@ An interface will appear showing results as they load, letting you track the age
 
 ### Implementation Details
 
-We built TradingAgents with LangGraph to ensure flexibility and modularity. The framework supports multiple LLM providers: OpenAI, Google, Anthropic, xAI, DeepSeek, Qwen (Alibaba DashScope, international and China endpoints), GLM (Zhipu), MiniMax (global + China), OpenRouter, Ollama for local models, Azure OpenAI for enterprise, and your own ChatGPT plan.
+We built TradingAgents with LangGraph to ensure flexibility and modularity. The framework supports multiple LLM providers: OpenAI, Google, Anthropic, the Claude Code CLI on your Claude subscription (`claude_cli`), xAI, DeepSeek, Qwen (Alibaba DashScope, international and China endpoints), GLM (Zhipu), MiniMax (global + China), OpenRouter, Ollama for local models, Azure OpenAI for enterprise, and your own ChatGPT plan.
 
 ### Python Usage
 
@@ -272,7 +312,7 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 
 config = DEFAULT_CONFIG.copy()
-config["llm_provider"] = "openai"        # e.g. openai, google, anthropic, deepseek, groq, ollama; openai_compatible covers any OpenAI-compatible endpoint (vLLM, LM Studio, llama.cpp, ...)
+config["llm_provider"] = "openai"        # e.g. openai, google, anthropic, claude_cli, deepseek, groq, ollama; openai_compatible covers any OpenAI-compatible endpoint (vLLM, LM Studio, llama.cpp, ...)
 config["deep_think_llm"] = "gpt-6-sol"    # Model for complex reasoning
 config["quick_think_llm"] = "gpt-6-luna"   # Model for quick tasks
 config["max_debate_rounds"] = 2

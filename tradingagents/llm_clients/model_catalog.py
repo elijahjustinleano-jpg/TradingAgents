@@ -122,6 +122,21 @@ MODEL_OPTIONS: ProviderModeOptions = {
             ("Custom model ID", "custom"),
         ],
     },
+    # Claude Code CLI aliases (`claude --model`). A full id the CLI accepts
+    # is entered as a custom model ID. These are not Anthropic API model ids.
+    "claude_cli": {
+        "quick": [
+            ("Opus - Claude Code alias, strongest", "opus"),
+            ("Sonnet - Claude Code alias, faster", "sonnet"),
+            ("Haiku - Claude Code alias, fastest", "haiku"),
+            ("Custom model ID", "custom"),
+        ],
+        "deep": [
+            ("Opus - Claude Code alias, strongest", "opus"),
+            ("Sonnet - Claude Code alias, faster", "sonnet"),
+            ("Custom model ID", "custom"),
+        ],
+    },
     "google": {
         "quick": [
             ("Gemini 3.8 Flash - Most capable Flash", "gemini-3.8-flash"),

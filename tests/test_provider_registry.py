@@ -22,6 +22,7 @@ def test_registry_membership():
     assert not is_openai_compatible("anthropic")
     assert not is_openai_compatible("google")
     assert not is_openai_compatible("azure")
+    assert not is_openai_compatible("claude_cli")
 
 
 @pytest.mark.unit
