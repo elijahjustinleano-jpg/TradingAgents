@@ -186,6 +186,45 @@ def test_tool_arguments_may_be_a_json_string(fake_cli):
 
 
 @pytest.mark.unit
+def test_tool_calls_outside_the_bound_set_are_dropped(fake_cli):
+    fake_cli([json.dumps({
+        "content": "fetching",
+        "tool_calls": [
+            {"name": "get_stock_data", "arguments": {"symbol": "NVDA"}},
+            {"name": "search_the_web", "arguments": {"query": "NVDA"}},
+        ],
+    })])
+    message = _llm().bind_tools([_STOCK]).invoke("Analyze NVDA.")
+    assert [call["name"] for call in message.tool_calls] == ["get_stock_data"]
+    assert message.tool_calls[0]["args"] == {"symbol": "NVDA"}
+
+
+@pytest.mark.unit
+def test_only_unknown_tool_names_become_text_not_a_tool_turn(fake_cli):
+    fake = fake_cli([
+        json.dumps({
+            "content": "I looked it up.",
+            "tool_calls": [{"name": "search_the_web", "arguments": {"query": "NVDA"}}],
+        }),
+        json.dumps({
+            "content": "",
+            "tool_calls": [{"name": "get_stock_data", "arguments": {"symbol": "NVDA"}}],
+        }),
+    ])
+    retried = _llm(max_retries=1).bind_tools([_STOCK]).invoke("Analyze NVDA.")
+    assert [call["name"] for call in retried.tool_calls] == ["get_stock_data"]
+    assert len(fake.calls) == 2
+
+    fake.replies.append(json.dumps({
+        "content": "The trend is up.",
+        "tool_calls": [{"name": "search_the_web", "arguments": {"query": "NVDA"}}],
+    }))
+    message = _llm(max_retries=0).bind_tools([_STOCK]).invoke("Analyze NVDA.")
+    assert message.tool_calls == []
+    assert message.content == "The trend is up."
+
+
+@pytest.mark.unit
 def test_prose_while_tools_are_bound_is_the_answer(fake_cli):
     fake_cli(["The trend is up."])
     message = _llm().bind_tools([_STOCK]).invoke("go")

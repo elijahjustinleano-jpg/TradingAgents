@@ -449,6 +449,10 @@ def _parse_tool_response(text: str) -> tuple[str, list[dict[str, Any]]]:
     return content, calls
 
 
+def _allowed_names(tools: list[Any]) -> set[str]:
+    return {str(spec["name"]) for spec in _tool_specs(tools) if spec.get("name")}
+
+
 def _apply_stop(text: str, stop: list[str] | None) -> str:
     if not stop or not text:
         return text
@@ -640,7 +644,32 @@ class ChatClaudeCLI(BaseChatModel):
                 promoted = _promote_bare_object(text, tools)
                 if promoted is not None:
                     content, calls = promoted
-            return _chat_result(_apply_stop(content, stop), calls, usage)
+            # The analyst tool node runs every name in the call list. A name
+            # that was not bound is not a call it can make, so it is dropped.
+            # If that leaves nothing, retry, then answer in text with no calls
+            # so the graph does not route into the tool node.
+            allowed = _allowed_names(tools)
+            known = [call for call in calls if call["name"] in allowed]
+            dropped = [call["name"] for call in calls if call["name"] not in allowed]
+            if known or not calls:
+                if dropped:
+                    logger.warning(
+                        "claude_cli ignored tool calls not in the bound set: %s",
+                        ", ".join(dropped),
+                    )
+                return _chat_result(_apply_stop(content, stop), known, usage)
+            if attempt >= attempts:
+                logger.warning(
+                    "claude_cli tool names were not in the bound set after %s attempts; "
+                    "using the text as the answer",
+                    attempts,
+                )
+                return _chat_result(_apply_stop(content or text, stop), usage=usage)
+            logger.warning(
+                "claude_cli tool names were not in the bound set (attempt %s/%s); retrying",
+                attempt, attempts,
+            )
+            self._backoff(attempt)
         raise ClaudeCLIError("claude_cli exhausted retries")
 
 
