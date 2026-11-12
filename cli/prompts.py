@@ -388,6 +388,7 @@ def _llm_provider_table() -> list[tuple[str, str, str | None]]:
         ("OpenAI", "openai", "https://api.openai.com/v1"),
         ("Google", "google", None),
         ("Anthropic", "anthropic", "https://api.anthropic.com/"),
+        ("Claude Code (local CLI, your Claude subscription)", "claude_cli", None),
         ("ChatGPT (Plus or Pro plan)", "chatgpt", "https://api.openai.com/v1"),
         ("xAI", "xai", "https://api.x.ai/v1"),
         ("DeepSeek", "deepseek", "https://api.deepseek.com"),

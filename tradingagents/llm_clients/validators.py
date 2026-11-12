@@ -8,6 +8,9 @@ from .model_catalog import get_known_models
 _ANY_MODEL_PROVIDERS = (
     "ollama", "openrouter", "openai_compatible",
     "mistral", "kimi", "groq", "nvidia", "bedrock", "chatgpt",
+    # Claude Code aliases (opus, sonnet, haiku) and full ids both work; the
+    # CLI, not this list, decides whether a model name is real.
+    "claude_cli",
 )
 
 VALID_MODELS = {
